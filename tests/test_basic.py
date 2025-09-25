@@ -1,7 +1,7 @@
 # tests/test_basic.py
 import unittest
 import numpy as np
-import chemcalc as cc
+import chemcalc_lib as cc
 
 class TestBasicFunctionality(unittest.TestCase):
     """Test basic mixture calculations based on examples.py"""

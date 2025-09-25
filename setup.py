@@ -6,13 +6,13 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="chemcalc_lib",
-    version="0.1.0", 
+    version="0.1.1", 
     author="Théophile Gaudin",
     author_email="gaudin.theophile@gmail.com",
     description="A library for chemical mixture calculations and composition conversions",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/chemcalc",
+    url="https://github.com/TheophileGaudin/chemcalc-lib",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -43,9 +43,9 @@ setup(
     },
     keywords="chemistry mixture mole fraction composition chemical calculations",
     project_urls={
-        "Bug Reports": "https://github.com/yourusername/chemcalc/issues",
-        "Source": "https://github.com/yourusername/chemcalc",
-        "Documentation": "https://github.com/yourusername/chemcalc/blob/main/README.md",
+        "Bug Reports": "https://github.com/TheophileGaudin/chemcalc-lib/issues",
+        "Source": "https://github.com/TheophileGaudin/chemcalc-lib",
+        "Documentation": "https://github.com/TheophileGaudin/chemcalc-lib/blob/main/README.md",
     },
     include_package_data=True,
     zip_safe=False,

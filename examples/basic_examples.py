@@ -6,7 +6,7 @@ Example script demonstrating how to use the library
 ''' Example 1: mole fractions, and conversion, of a water/ethanol solution with salt '''
 
 # Import the library
-import chemcalc as cc
+import chemcalc_lib as cc
 
 # Define the mixture components
 names             = ["Water", "Ethanol", "NaCl"        ]
