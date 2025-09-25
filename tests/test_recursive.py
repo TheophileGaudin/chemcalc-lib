@@ -1,6 +1,6 @@
 # tests/test_recursive.py  
 import unittest
-import chemcalc as cc
+import chemcalc_lib as cc
 
 class TestRecursiveFunctionality(unittest.TestCase):
     """Test recursive mixture calculations based on example_recursive.py"""
