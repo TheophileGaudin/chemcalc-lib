@@ -9,7 +9,7 @@ This library provides functions for:
 - Unit cell population calculations
 
 Example usage:
-    import chemcalc as cc
+    import chemcalc_lib as cc
     
     # Create mixture components
     components = cc.create_mixture(
@@ -29,8 +29,8 @@ Example usage:
 from .core import *
 
 __version__ = "0.1.0"
-__author__ = "Your Name"
-__email__ = "your.email@example.com"
+__author__ = "Theophile Gaudin"
+__email__ = "gaudin.theophile@gmail.com"
 __description__ = "A library for chemical mixture calculations and composition conversions"
 
 # Expose main functions at package level
