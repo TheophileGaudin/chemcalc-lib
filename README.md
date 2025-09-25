@@ -1,20 +1,20 @@
 # ChemCalc
 
-A Python library for chemical mixture calculations and composition conversions.
+A Python library for to convert between different chemical amount types.
 
 ## Features
 
 - Convert between different amount types (mass, volume, moles, concentrations, fractions, etc.)
 - Calculate mole fractions from various mixture specifications  
 - Handle complex mixture compositions including entities and stoichiometry
-- Support for recursive mixture calculations
+- Support for mixtures of mixtures at any level of nesting
 - Unit cell population calculations for molecular simulation
 - Support for molality calculations with multiple solutes
 
 ## Installation
 
 ```bash
-pip install chemcalc
+pip install chemcalc_lib
 ```
 
 ## Quick Start
@@ -22,7 +22,7 @@ pip install chemcalc
 ### Basic Example: Water/Ethanol/Salt Solution
 
 ```python
-import chemcalc as cc
+import chemcalc_lib as cc
 
 # Define the mixture components
 names             = ["Water", "Ethanol", "NaCl"        ]
