@@ -7,7 +7,7 @@ Example script demonstrating how to use the library
 
 # Import the library
 
-import chemcalc as cc
+import chemcalc_lib as cc
 
 # Define basic components (leaf nodes)
 # Because of the recursive structure, the user needs to define the dictionaries directly.
