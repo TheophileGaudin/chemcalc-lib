@@ -27,126 +27,59 @@ def create_mixture(names,
     amounts,
     amount_types,
     units,
-    Mw = None,
-    Vm = None,
-    entities = None,
-    stoichiometries = None):
+    Mw=None,
+    Vm=None,
+    entities=None,
+    stoichiometries=None):
     """
-    Create component data in the format used by mixture composition functions.
-    
-    Parameters:
-        names (list): List of component names
-        amounts (list): List of amount values
-        amount_types (list): List of amount types ('m', 'V', 'n', 'w', 'φ', 'x', 'c', 'b*', 'ρ', 'v*', 'b')
-        units (list): List of units for the amounts
-        molar_weights (list): List of molar weights in g/mol
-        molar_volumes (list): List of molar volumes in mL/mol
-        entities_lists (list): List of lists of entity names for each component
-        stoichiometries_lists (list): List of lists of stoichiometries for each entity
-        
-    Returns:
-        list: List of component dictionaries ready for use in mixture functions
+    Create component data for mixture calculations, allowing Mw or Vm to be optional.
     """
-    # Validate input list lengths
     num_components = len(names)
-    if not all(len(lst) == num_components for lst in [
-        amounts, amount_types, units, Mw, Vm, 
-        entities, stoichiometries
-    ]):
+    if Mw is None: Mw = [None] * num_components
+    if Vm is None: Vm = [None] * num_components
+    if entities is None: entities = [[]] * num_components
+    if stoichiometries is None: stoichiometries = [[]] * num_components
+
+    if not all(len(lst) == num_components for lst in [amounts, amount_types, units, Mw, Vm, entities, stoichiometries]):
         raise ValueError("All input lists must have the same length")
-    
-    # Create component dictionaries
+
     component_data = []
-    
     for i in range(num_components):
-        # Create the basic component dictionary
         component = {
             'name': names[i],
             'amount': amounts[i],
             'amount_type': amount_types[i],
             'unit': units[i],
-            'mw': Mw[i] if Mw is not None else None,
-            'vm': Vm[i] if Vm is not None else None
         }
-        
-        # Add entities if they exist
-        if entities is not None:
-            if entities[i]:
-                # Validate entity and stoichiometry list lengths
-                if len(entities[i]) != len(stoichiometries[i]):
-                    raise ValueError(
-                        f"Entities and stoichiometries lists for component {names[i]} "
-                        f"must have the same length"
-                    )
-                
-                # Add entities to the component
-                component['entities'] = [
-                    {'name': entity, 'stoichiometry': stoich}
-                    for entity, stoich in zip(entities[i], stoichiometries[i])
-                ]
-        
+        if Mw[i] is not None:
+            component['mw'] = Mw[i]
+        if Vm[i] is not None:
+            component['vm'] = Vm[i]
+        if entities[i]:
+            if len(entities[i]) != len(stoichiometries[i]):
+                raise ValueError(f"Entities and stoichiometries lists for {names[i]} must match")
+            component['entities'] = [
+                {'name': e, 'stoichiometry': s} for e, s in zip(entities[i], stoichiometries[i])
+            ]
         component_data.append(component)
-    
     return component_data
 def create_amount_matrix(components_data):
     """
-    Convert component information to the matrix format needed for mole_fraction_algebra.
-    
-    Parameters:
-        components_data (list): A list of dictionaries, each containing:
-            - name (str): Component name
-            - amount (float): Numerical value of the amount
-            - amount_type (str): Type of amount ('m', 'V', 'n', 'w', 'φ', 'x', 'c', 'b', 'ρ', 'v')
-            - unit (str): Unit of the amount (e.g., 'g', 'L', 'mol', etc.)
-            - mw (float): Molar weight in g/mol
-            - vm (float): Molar volume in mL/mol (default) or specified unit
-            - vm_unit (str, optional): Unit of molar volume (default is 'mL/mol')
-            
-    Returns:
-        tuple: (matrix, names, Mw, Vm)
-            - matrix (numpy.ndarray): Matrix for mole_fraction_algebra
-            - names (list): Component names
-            - Mw (numpy.ndarray): Molar weights array
-            - Vm (numpy.ndarray): Molar volumes array in L/mol (converted)
+    Create amount matrix, tolerating missing Mw or Vm (replaced with 1.0 only if needed).
     """
-    import numpy as np
-    
-    # Number of components
-    n_components = len(components_data)
-    
-    # Initialize the matrix (10 columns for different amount types)
-    # Columns: m(mass), V(volume), n(moles), w(weight fraction), φ(volume fraction), 
-    # x(mole fraction), c(molarity), b*(overall molality), ρ(mass concentration), v*(partial specific volume)
-    matrix = np.zeros((n_components, 10))
-    
-    # Extract component properties
-    names = []
-    Mw = np.zeros(n_components)
-    Vm = np.zeros(n_components)
-    
-    # Process each component
-    for i, component in enumerate(components_data):
-        names.append(component['name'])
-        Mw[i] = component['mw']
-        
-        # Convert molar volume from default mL/mol to L/mol
-        vm_value = component['vm']
-        vm_unit = component.get('vm_unit', 'mL/mol')  # Default is mL/mol if not specified
-        Vm[i] = convert_molar_volume(vm_value, vm_unit)
-        
-        amount = component['amount']
-        amount_type = component['amount_type']
-        unit = component['unit']
-        
-        # Convert to standardized units
-        amount = convert_to_standard_unit(amount, amount_type, unit)
-        
-        # Map amount types to matrix columns
-        column_index = get_column_index(amount_type)
-        
-        # Set the value in the matrix
-        matrix[i, column_index] = amount
-    
+    n = len(components_data)
+    matrix = np.zeros((n, 10))
+    names, Mw, Vm = [], np.zeros(n), np.zeros(n)
+
+    for i, comp in enumerate(components_data):
+        names.append(comp['name'])
+        Mw[i] = comp.get('mw', 1.0) if comp.get('mw') not in [None, 0] else 1.0
+        Vm[i] = convert_molar_volume(comp.get('vm', 1.0), comp.get('vm_unit', 'mL/mol')) \
+            if comp.get('vm') not in [None, 0] else 1.0
+
+        amt = convert_to_standard_unit(comp['amount'], comp['amount_type'], comp['unit'])
+        idx = get_column_index(comp['amount_type'])
+        matrix[i, idx] = amt
     return matrix, names, Mw, Vm
 def convert_to_standard_unit(amount, amount_type, unit):
     """
@@ -279,139 +212,146 @@ def get_column_index(amount_type):
     return amount_type_mapping.get(amount_type, 0)
 def get_mole_fractions(components_data, include_entities=False):
     """
-    High-level function to convert mixture composition to mole fractions
-    and calculate mixture properties.
+    Calculate mole fractions from component data.
     
-    Parameters:
-        components_data (list): List of component dictionaries
-        include_entities (bool): Whether to calculate entity mole fractions
-        
-    Returns:
-        dict: Results including mole fractions and mixture properties
+    Behaviour:
+    - If no component has amount_type 'b' (molality), return a single result dict.
+    - If exactly one component has amount_type 'b', return a single result dict for
+      that solute.
+    - If more than one component has amount_type 'b', return a list of result dicts,
+      one per solute, each mixed with the same solvent.
+      
+    The function is permissive w.r.t. mw / vm:
+    - If 'mw' or 'vm' is missing or None, it is auto-filled with 1.0.
+      (This only matters numerically if that property is actually used
+       in the algebra for the given amount types.)
     """
+    from copy import deepcopy
+    import numpy as np
 
-    # for i, component in enumerate(pristine_components_data):
-        # if component["amount_type"] == "m": 
-            # Mw_needed.append(True)
-            # Vm_needed.append(False)
-        # if component["amount_type"] == "V": 
-        # if component["amount_type"] == "n": 
-        # if component["amount_type"] == "w": 
-        # if component["amount_type"] == "φ": 
-        # if component["amount_type"] == "x": 
-        # if component["amount_type"] == "b": 
-        # if component["amount_type"] == "b": 
-        # if component["amount_type"] == "b": 
-    
-    # Triage molality cases from normal cases
-    molality_n = 0
-    pristine_components_data = deepcopy(components_data)
-    molality_solute_idx     = list()
-    molality_solute_name    = list()
-    molality_solute_Mw      = list()
-    molality_solute_b       = list()
-    
-    for i, component in enumerate(pristine_components_data):
-        if component["amount_type"] == "b": #remove the component from the pristine mixture
-            molality_solute_name.append(component["name"])
-            molality_solute_Mw.append(component["mw"])
-            molality_solute_b.append(component["amount"])
+    # Work on a copy so we don't mutate the caller's data
+    components_data = deepcopy(components_data)
+
+    # Auto-fill missing mw and vm with dummy values
+    for component in components_data:
+        if component.get("mw") is None:
+            component["mw"] = 1.0
+        if component.get("vm") is None:
+            component["vm"] = 1.0
+
+    # --- Triaging molality ("b") solutes vs "normal" components ---
+
+    molality_n          = 0
+    pristine_components = deepcopy(components_data)
+    molality_solute_idx = []
+    molality_solute_name = []
+    molality_solute_Mw   = []
+    molality_solute_b    = []
+
+    for i, comp in enumerate(pristine_components):
+        if comp["amount_type"] == "b":
+            molality_solute_name.append(comp["name"])
+            molality_solute_Mw.append(comp["mw"])
+            molality_solute_b.append(comp["amount"])
             molality_solute_idx.append(i)
-            component["amount"]      = 0
-            component["amount_type"] = "x"
-            component["unit"]        = "-"
+
+            # Remove solute from the "pristine" solvent mixture
+            comp["amount"]      = 0.0
+            comp["amount_type"] = "x"
+            comp["unit"]        = "-"
             molality_n += 1
-            
-    
-    # Normal case returns just one results object
+
+    # --- Case 1: no traditional molality 'b' present -> single mixture ---
+
     if molality_n == 0:
-    
-        # Create matrix and extract component properties
+        # Build amount matrix (Table 1) and property arrays
         matrix, names, Mw, Vm = create_amount_matrix(components_data)
-        
-        # Calculate mole fractions using the library function
+
+        # Solve for mole fractions and mixture properties
         x, Mw_avg, Vm_avg, n_tot, no_abs = mole_fraction_algebra(matrix, Mw, Vm)
-        
-        
-        # Store component data in mole fractions format
-        results_components_data = deepcopy(components_data)
-        for i, component in enumerate(results_components_data):
-            component["amount"]      = x[i]
-            component["amount_type"] = "x"
-            component["unit"]        = "-"
-            
-        
-        # Create results dictionary
+
+        # Put components back in mole-fraction form
+        results_components = deepcopy(components_data)
+        for i, comp in enumerate(results_components):
+            comp["amount"]      = x[i]
+            comp["amount_type"] = "x"
+            comp["unit"]        = "-"
+
+        # Base result dict
         results = {
-            'mole_fractions': {names[i]: x[i] for i in range(len(names))},
-            'average_molar_weight': Mw_avg,
-            'average_molar_volume_L_mol': Vm_avg,
-            'average_molar_volume_mL_mol': Vm_avg * 1000,  # Convert back to mL/mol for reporting
-            'total_moles': n_tot if not no_abs else None,
-            'component list': results_components_data
+            "mole_fractions": {names[i]: x[i] for i in range(len(names))},
+            "average_molar_weight": Mw_avg,
+            "average_molar_volume_L_mol": Vm_avg,
+            "average_molar_volume_mL_mol": Vm_avg * 1000.0,
+            "total_moles": n_tot if not no_abs else None,
+            "component list": results_components,
         }
-        
-        # If requested, calculate entity mole fractions
+
+        # Optional entity mole fractions
         if include_entities:
-            # Extract entity information from components
-            entities_information = extract_entities_information(components_data)
-            
-            # Calculate entity mole fractions
-            entity_mole_fractions = entities_mole_fraction_algebra(
-                entities_information, 
-                results['mole_fractions']
+            entities_info = extract_entities_information(components_data)
+            entity_x = entities_mole_fraction_algebra(
+                entities_info, results["mole_fractions"]
             )
-            
-            # Add entity mole fractions to results
-            results['entity_mole_fractions'] = entity_mole_fractions
-        
+            results["entity_mole_fractions"] = entity_x
+
         return results
-    else: # Here we return one case per provided molality
-        # First we compute the properties for the pristine mixture without molality solutes
-        matrix, names, Mw, Vm              = create_amount_matrix(pristine_components_data)
-        x_0, Mw_avg, Vm_avg, n_tot, no_abs = mole_fraction_algebra(matrix, Mw, Vm)
-        
-        results_list = list()
-        for i in range(molality_n):
-            # Include solute in calculation of mole fractions
-            x                                = calculate_mole_fractions_with_molality(x_0, names, Mw_avg, molality_solute_b[i], molality_solute_Mw[i], molality_solute_name[i])
-            
-            # Store component data in mole fractions format
-            results_components_data = deepcopy(components_data)
-            for i, component in enumerate(results_components_data):
-                component["amount"]      = x[i]
-                component["amount_type"] = "x"
-                component["unit"]        = "-"   
-            
-            # Create results dictionary
-            results = {
-                'mole_fractions'             : {names[i]: x[i] for i in range(len(names)) if x[i] > 0},
-                'average_molar_weight'       : np.dot(x, Mw),         # Recalculate average properties
-                'average_molar_volume_L_mol' : np.dot(x, Vm),         # Recalculate average properties
-                'average_molar_volume_mL_mol': np.dot(x, Vm) * 1000,  # Convert back to mL/mol for reporting
-                'total_moles'                : n_tot if not no_abs else None,
-                'component list'             : results_components_data
-            }
-            
-            # If requested, calculate entity mole fractions
-            if include_entities:
-                # Extract entity information from components
-                entities_information = extract_entities_information(components_data)
-                
-                # Calculate entity mole fractions
-                entity_mole_fractions = entities_mole_fraction_algebra(
-                    entities_information, 
-                    results['mole_fractions']
-                )
-                
-                # Add entity mole fractions to results
-                results['entity_mole_fractions'] = entity_mole_fractions
-            results_list.append(results)
-                
-        if molality_n == 1: #if a single solute no need to return a list of results
-            return results
-        else:
-            return results_list
+
+    # --- Case 2: at least one 'b' solute -> one mixture per solute ---
+
+    # First compute solvent composition (without any 'b' solutes)
+    matrix, names, Mw, Vm = create_amount_matrix(pristine_components)
+    x_solvent, Mw_avg, Vm_avg, n_tot, no_abs = mole_fraction_algebra(matrix, Mw, Vm)
+
+    results_list = []
+
+    for k in range(molality_n):
+        # Compute mole fractions including this solute with given molality
+        x = calculate_mole_fractions_with_molality(
+            x_solvent,
+            names,
+            Mw_avg,
+            molality_solute_b[k],
+            molality_solute_Mw[k],
+            molality_solute_name[k],
+        )
+
+        # Store component data in mole-fraction form
+        results_components = deepcopy(components_data)
+        for i, comp in enumerate(results_components):
+            comp["amount"]      = x[i]
+            comp["amount_type"] = "x"
+            comp["unit"]        = "-"
+
+        # For each solute, recompute averages for that specific mixture
+        Mw_mix = np.dot(x, Mw)
+        Vm_mix = np.dot(x, Vm)
+
+        res = {
+            "mole_fractions": {
+                names[i]: x[i] for i in range(len(names)) if x[i] > 0.0
+            },
+            "average_molar_weight": Mw_mix,
+            "average_molar_volume_L_mol": Vm_mix,
+            "average_molar_volume_mL_mol": Vm_mix * 1000.0,
+            "total_moles": n_tot if not no_abs else None,
+            "component list": results_components,
+        }
+
+        if include_entities:
+            entities_info = extract_entities_information(components_data)
+            entity_x = entities_mole_fraction_algebra(
+                entities_info, res["mole_fractions"]
+            )
+            res["entity_mole_fractions"] = entity_x
+
+        results_list.append(res)
+
+    # Single solute -> single dict; multiple solutes -> list of dicts
+    if molality_n == 1:
+        return results_list[0]
+    else:
+        return results_list
 def solve_partitioned_system(A, b, knowns):
     """
     Solves a system of linear equations A x = b, taking into account that
@@ -905,94 +845,116 @@ def distribute_mixture_component(amount_type, standardized_amount, M_mo, V_mo, x
     """
     Distribute a standardized amount of a component from a parent mixture to a daughter mixture
     based on physical equations for mixture composition.
-    
+
     Args:
         amount_type (str): The type of amount ('m', 'V', 'n', 'w', 'φ', 'x', 'c', 'b', 'ρ', 'v')
         standardized_amount (float): The standardized amount value
         x_i (float): Mole fraction of component i in the parent mixture
         M_i (float): Molar weight of component i (g/mol)
         V_m_i (float): Molar volume of component i (L/mol)
-        M_mo: Average molar weight of parent mixture (g/mol)
-        V_mo: Average molar volume of parent mixture (L/mol)
-    
+        M_mo (float): Average molar weight of parent mixture (g/mol)
+        V_mo (float): Average molar volume of parent mixture (L/mol)
+
     Returns:
         tuple: (distributed_amount, output_amount_type)
-            - distributed_amount (float): The properly distributed standardized amount
-            - output_amount_type (str): The type of the distributed amount
     """
-    
-    
-    # Handle case where molar weights or volumes are zero or very small
-    if abs(M_mo) < 1e-10 or abs(V_mo) < 1e-10:
-        print(f"Warning: Parent mixture has near-zero molar weight ({M_mo}) or molar volume ({V_mo})")
-        return 0.0, amount_type  # Return zero with original type to avoid division by zero
-    
-    # Now implement equations C1-C14 from the provided screenshots
+
+    # Guard only for the quantities actually needed in each case
+
+    # Types that do NOT use mixture Mw or Vm
+    if amount_type in ['n', 'x', 'c', 'b']:
+        # no extra checks; formulas only use x_i and the standardized amount
+        pass
+
+    # Types that need mixture M_mo only
+    elif amount_type in ['m', 'w', 'ρ']:
+        if abs(M_mo) < 1e-10:
+            raise ValueError(
+                f"Cannot distribute '{amount_type}' from parent: "
+                f"mixture molar mass M_mo is zero or missing."
+            )
+
+    # Types that need mixture V_mo only
+    elif amount_type in ['V', 'φ']:
+        if abs(V_mo) < 1e-10:
+            raise ValueError(
+                f"Cannot distribute '{amount_type}' from parent: "
+                f"mixture molar volume V_mo is zero or missing."
+            )
+
+    # Type that needs both M_mo and component V_m_i
+    elif amount_type == 'v':
+        if abs(M_mo) < 1e-10 or abs(V_m_i) < 1e-10:
+            raise ValueError(
+                "Cannot distribute 'v' from parent: M_mo or component V_m_i "
+                "is zero or missing."
+            )
+
+    # Now implement equations C1–C14
+
     if amount_type == 'n':
-        # Equation C1: n_i^mo = x_mo^i * n_mo
+        # C1: n_i^mo = x_mo^i * n_mo
         distributed_amount = standardized_amount * x_i
         return distributed_amount, 'n'
-        
+
     elif amount_type == 'm':
-        # Equation C2: m_i^mo = x_mo^i * M_i * n_mo
-        # First convert mass to moles: n_mo = m_mo / M_mo
+        # C2: m_i^mo = x_mo^i * M_i * n_mo
+        # n_mo = m_mo / M_mo
         n_mo = standardized_amount / M_mo
-        # Then apply equation C1 and convert back to mass
         distributed_amount = x_i * n_mo * M_i
         return distributed_amount, 'm'
-        
+
     elif amount_type == 'V':
-        # Equation C3: V_i^mo = x_mo^i * V_m,i * n_mo
-        # First convert volume to moles: n_mo = V_mo / V_m,mo
+        # C3: V_i^mo = x_mo^i * V_m,i * n_mo
+        # n_mo = V_mo / V_m,mo
         n_mo = standardized_amount / V_mo
-        # Then apply equation C1 and convert to volume
         distributed_amount = x_i * n_mo * V_m_i
         return distributed_amount, 'V'
-        
+
     elif amount_type == 'x':
-        # Equation C4: x_i^mo = x_mo * x_mo^i
+        # C4: x_i^mo = x_mo * x_mo^i
         distributed_amount = standardized_amount * x_i
         return distributed_amount, 'x'
-        
+
     elif amount_type == 'w':
-        # Equation C5: w_i^mo = (w_mo * M_i / M_mo) * x_mo^i
+        # C5: w_i^mo = (w_mo * M_i / M_mo) * x_mo^i
         distributed_amount = standardized_amount * (M_i / M_mo) * x_i
         return distributed_amount, 'w'
-        
+
     elif amount_type == 'φ':
-        # Equation C6: φ_i^mo = (φ_mo * V_m,i / V_mo) * x_mo^i
+        # C6: φ_i^mo = (φ_mo * V_m,i / V_mo) * x_mo^i
         distributed_amount = standardized_amount * (V_m_i / V_mo) * x_i
         return distributed_amount, 'φ'
-        
+
     elif amount_type == 'c':
-        # Equation C7/C11: c_i^mo = x_mo^i * c_mo
+        # C7/C11: c_i^mo = x_mo^i * c_mo
         distributed_amount = standardized_amount * x_i
         return distributed_amount, 'c'
-        
+
     elif amount_type == 'ρ':
-        # Equation C8/C12: ρ_i^mo = (M_i / M_mo) * ρ_mo * x_mo^i
+        # C8/C12: ρ_i^mo = (M_i / M_mo) * ρ_mo * x_mo^i
         distributed_amount = standardized_amount * (M_i / M_mo) * x_i
         return distributed_amount, 'ρ'
-        
+
     elif amount_type == 'b':
-        # Equation C9/C13: b_i^mo = x_mo^i * b_mo
+        # C9/C13: b_i^mo = x_mo^i * b_mo
         distributed_amount = standardized_amount * x_i
         return distributed_amount, 'b'
-        
+
     elif amount_type == 'v':
-        # Equation C10/C14: v_i^mo = (V_m,i / M_mo) * v_mo * x_mo^i
+        # C10/C14: v_i^mo = (V_m,i / M_mo) * v_mo * x_mo^i
         distributed_amount = standardized_amount * (V_m_i / M_mo) * x_i
         return distributed_amount, 'v'
-        
+
     else:
-        # Unknown amount type
         print(f"Warning: Unknown amount type '{amount_type}'")
         return 0.0, amount_type
+
 def get_mole_fractions_recursive(all_nodes, include_entities=True):
     nodes_by_level, node_types = classify_node_levels(all_nodes)
    
     
-    #for each level we determine the composition. We start with assumption of x = 1 for each component
+    # For each level we determine the composition. We start with assumption of x = 1 for each component
     for node_name in nodes_by_level[0]:
         node = all_nodes.get(node_name)
         
@@ -1010,70 +972,196 @@ def get_mole_fractions_recursive(all_nodes, include_entities=True):
         # For base components, Mw_mix and Vm_mix are just their own values
         node['Mw_mix'] = node.get("mw", 0)
         node['Vm_mix'] = node.get("vm", 0) / 1000
+        
     for i in range(len(nodes_by_level)-1):
         for node_name in nodes_by_level[i+1]:
-            # print("level", i+1, "node", node_name)
-            #get nodes
+            # Get nodes
             node = all_nodes.get(node_name)
             
-            #initialize component list
+            # Initialize component list for the "solvent" (non-molality components)
             component_list = list()
             
-            # print("node:", node)
+            # Separate molality parents from non-molality parents
+            # Molality components are solutes that will be added after calculating the solvent composition
+            molality_parents = []
+            non_molality_parents = []
             
-            #get mother mixtures
             for parent in node["parents"]:
+                if parent["amount_type"] == "b":
+                    molality_parents.append(parent)
+                else:
+                    non_molality_parents.append(parent)
+            
+            # Process non-molality parents to build the "solvent" composition
+            for parent in non_molality_parents:
                 parent_node = all_nodes.get(parent["name"])
                 
-                # print("parent node:", parent_node)
-                
                 amount_type         = parent["amount_type"]
-                standardized_amount = convert_to_standard_unit(parent["amount"], parent["amount_type"], parent["unit"]) #convert amount to standard unit
+                standardized_amount = convert_to_standard_unit(parent["amount"], parent["amount_type"], parent["unit"])
                 
-                #collect mixture properties
+                # Collect mixture properties
                 M_mo                = parent_node["Mw_mix"]  
                 V_mo                = parent_node["Vm_mix"] 
                 
-                
-                #assign individual components of parent mixture to the current mixture
-                
+                # Assign individual components of parent mixture to the current mixture
                 for component in parent_node['components']:
                     comp_node = parent_node['components'].get(component)
                     
-                    #get mole fraction of component in parent mixture
+                    # Get mole fraction of component in parent mixture
                     x_i   = comp_node["x"] 
                     
-                    #get component properties
+                    # Get component properties
                     M_i   = comp_node["mw"]
-                    V_m_i = comp_node["vm"] / 1000 #L/mol
+                    V_m_i = comp_node["vm"] / 1000  # L/mol
                     
-                    
-                    #get amounts of components from parent mixture
+                    # Get amounts of components from parent mixture
                     comp_node["amount"], comp_node["amount_type"] = distribute_mixture_component(amount_type, standardized_amount, M_mo, V_mo, x_i, M_i, V_m_i)
-                    comp_node["unit"] = amount_type_to_std_unit[comp_node["amount_type"]] #the standardized unit is the unit for this amount
+                    comp_node["unit"] = amount_type_to_std_unit[comp_node["amount_type"]]
                     component_list.append(comp_node)
+            
+            # Calculate the "solvent" composition (mixture without molality solutes)
+            if component_list:  # Only if there are non-molality components
+                matrix, names, Mw, Vm = create_amount_matrix(component_list)
+                x, Mw_av, Vm_av, n_tot, no_abs = mole_fraction_algebra(matrix, Mw, Vm)
+            else:
+                # Edge case: only molality components (shouldn't happen in practice)
+                names = []
+                Mw = array([])
+                Vm = array([])
+                x = array([])
+                Mw_av = 0
+                Vm_av = 0
+                n_tot = 0
+                no_abs = True
+            
+            # Apply molality constraints if any exist
+            # Each molality component is a solute in the solvent mixture calculated above
+            if molality_parents:
+                # For each molality parent, we need to add it to the mixture
+                # using the molality constraint equation
+                
+                for parent in molality_parents:
+                    parent_name = parent['name']
+                    parent_node = all_nodes.get(parent_name)
                     
-            #get amount matrix and actually convert to mole fractions    
-            matrix, names, Mw, Vm = create_amount_matrix(component_list)
-            x, Mw_av, Vm_av, n_tot, no_abs = mole_fraction_algebra(matrix, Mw, Vm)
+                    # Convert molality to standard units (mol/g)
+                    molality_value = convert_to_standard_unit(parent['amount'], parent['amount_type'], parent['unit'])
+                    
+                    # Check if this parent is a mixture or a simple component
+                    if 'components' in parent_node and len(parent_node['components']) > 1:
+                        # Parent is a mixture - this means molality is specified for an entire mixture
+                        # We need to treat each component of this mixture as having proportional molality
+                        
+                        # For a mixture parent with molality, distribute the molality proportionally
+                        # to each component based on their mole fraction in that mixture
+                        mixture_components = []
+                        for comp_name, comp_data in parent_node['components'].items():
+                            comp_fraction = comp_data['x']
+                            comp_mw = comp_data['mw']
+                            comp_vm = comp_data['vm']
+                            
+                            # This component gets a fraction of the molality
+                            comp_molality = molality_value * comp_fraction
+                            
+                            mixture_components.append({
+                                'name': comp_name,
+                                'mw': comp_mw,
+                                'vm': comp_vm / 1000,  # Convert to L/mol
+                                'molality': comp_molality,
+                                'properties': comp_data.get('properties', {})
+                            })
+                        
+                        # Now add all these components using their distributed molality
+                        for solute_comp in mixture_components:
+                            solute_name = solute_comp['name']
+                            solute_molality = solute_comp['molality']
+                            solute_mw = solute_comp['mw']
+                            solute_vm = solute_comp['vm']
+                            
+                            # Calculate solute mole fraction using molality equation
+                            # x_solute = (b * M_solvent) / (1 + b * M_solvent)
+                            # where M_solvent is the average molar weight of the current solvent mixture
+                            x_solute = (solute_molality * Mw_av) / (1 + solute_molality * Mw_av)
+                            
+                            # Add this component to the mixture
+                            # Rescale existing components by (1 - x_solute)
+                            x = x * (1 - x_solute)
+                            
+                            # Append the new component
+                            names = list(names) + [solute_name]
+                            Mw = np.append(Mw, solute_mw)
+                            Vm = np.append(Vm, solute_vm)
+                            x = np.append(x, x_solute)
+                            
+                            # Update component_list for later processing
+                            component_list.append({
+                                'name': solute_name,
+                                'mw': solute_mw,
+                                'vm': solute_vm * 1000,  # Back to mL/mol for consistency
+                                'x': x_solute,
+                                'amount': x_solute,
+                                'amount_type': 'x',
+                                'unit': '-',
+                                'properties': solute_comp.get('properties', {})
+                            })
+                            
+                            # Recalculate average properties
+                            Mw_av = np.dot(x, Mw)
+                            Vm_av = np.dot(x, Vm)
+                    else:
+                        # Parent is a simple component (solute)
+                        solute_name = parent_name
+                        solute_mw = parent_node.get('mw', 0)
+                        solute_vm = parent_node.get('vm', 0) / 1000  # Convert to L/mol
+                        
+                        # Calculate solute mole fraction using molality equation
+                        # x_solute = (b * M_solvent) / (1 + b * M_solvent)
+                        x_solute = (molality_value * Mw_av) / (1 + molality_value * Mw_av)
+                        
+                        # Rescale existing (solvent) components by (1 - x_solute)
+                        x = x * (1 - x_solute)
+                        
+                        # Append the solute component
+                        names = list(names) + [solute_name]
+                        Mw = np.append(Mw, solute_mw)
+                        Vm = np.append(Vm, solute_vm)
+                        x = np.append(x, x_solute)
+                        
+                        # Update component_list for later processing
+                        component_list.append({
+                            'name': solute_name,
+                            'mw': solute_mw,
+                            'vm': solute_vm * 1000,  # Back to mL/mol
+                            'x': x_solute,
+                            'amount': x_solute,
+                            'amount_type': 'x',
+                            'unit': '-',
+                            'properties': parent_node.get('properties', {})
+                        })
+                        
+                        # Recalculate average properties
+                        Mw_av = np.dot(x, Mw)
+                        Vm_av = np.dot(x, Vm)
             
-            
-            #add mixture properties to the node
+            # Add mixture properties to the node
             node['Mw_mix'] = Mw_av
             node['Vm_mix'] = Vm_av
-            node['n_tot']  = n_tot if no_abs else None
+            node['n_tot']  = n_tot if not no_abs else None
             
-            #assign computed mole fractions to each component of the node
+            # Assign computed mole fractions to each component of the node
             for j in range(len(component_list)):
-                component_list[j]["x"] = x[j]
+                comp_name = component_list[j]['name']
+                # Find this component in the names list
+                if comp_name in names:
+                    idx = names.index(comp_name) if isinstance(names, list) else list(names).index(comp_name)
+                    component_list[j]["x"] = x[idx]
              
-            #manage duplicates             
+            # Manage duplicates             
             combined = {}
             
             for comp in component_list:
                 comp_name = comp['name']
                 if comp_name in combined:
-                    
                     # Add mole fractions for duplicates
                     combined[comp_name]['x'] += comp.get('x', 0)
                 else:
@@ -1087,7 +1175,7 @@ def get_mole_fractions_recursive(all_nodes, include_entities=True):
                 comp_name = comp['name']
                 components_dict[comp_name] = comp
             
-            #append components and their mole fractions to the node so that they can be retrieved by higher level nodes
+            # Append components and their mole fractions to the node
             node['components'] = components_dict
             
                
@@ -1113,9 +1201,9 @@ def get_mole_fractions_recursive(all_nodes, include_entities=True):
                     else:
                         # Default: use component name as entity with stoichiometry 1
                         entities_information.append([
-                            comp_name,  # Component name as entity name
-                            comp_name,  # Parent component
-                            1.0         # Default stoichiometry
+                            comp_name,
+                            comp_name,
+                            1.0
                         ])
                  
                 entity_mole_fractions = entities_mole_fraction_algebra(entities_information, node["component_mole_fractions"])    
@@ -1128,7 +1216,7 @@ def get_mole_fractions_recursive(all_nodes, include_entities=True):
                     # Set the amount as the mole fraction
                     comp['amount'] = comp['x']
                     comp['amount_type'] = 'x'
-                    comp['unit'] = '-'  # No unit for mole fraction
+                    comp['unit'] = '-'
                     
                 # Extract component information for conversion
                 component_list = []
@@ -1161,10 +1249,10 @@ def get_mole_fractions_recursive(all_nodes, include_entities=True):
             terminal_results.append( {
                 'name'                        : node_name,
                 'mole_fractions'              : node["component_mole_fractions"],
-                'average_molar weight'        : node["Mw_mix"],
+                'average_molar_weight'        : node["Mw_mix"],
                 'average_molar_volume_L_mol'  : node["Vm_mix"],
-                'average_molar_volume_mL_mol' : node["Vm_mix"] * 1000,  # Also in mL/mol for convenience
-                'component list'              : node["component_list"], #component list in format for conversion
+                'average_molar_volume_mL_mol' : node["Vm_mix"] * 1000,
+                'component list'              : node["component_list"],
                 'total_moles'                 : node['n_tot']         
             })
             
