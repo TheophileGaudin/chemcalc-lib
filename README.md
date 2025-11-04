@@ -159,6 +159,6 @@ If you use ChemCalc in your research, please cite:
 
 ```text
 Théophile Gaudin, Arithmetic of Mixing, in preparation.
-GitHub: https://github.com/TheophileGaudin/chemcalc-lib, doi: 10.5281/zenodo.17525109 
+GitHub: https://github.com/TheophileGaudin/chemcalc-lib, doi: 10.5281/zenodo.17525552
 
 ```
