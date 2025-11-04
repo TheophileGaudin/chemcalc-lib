@@ -28,7 +28,7 @@ Example usage:
 
 from .core import *
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 __author__ = "Theophile Gaudin"
 __email__ = "gaudin.theophile@gmail.com"
 __description__ = "A library for chemical mixture calculations and composition conversions"

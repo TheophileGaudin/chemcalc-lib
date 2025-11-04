@@ -80,10 +80,9 @@ The `examples/` folder contains several fully worked scripts:
   - Demonstrates how to define a mixture tree manually and obtain mole fractions and practical preparation amounts for terminal mixtures.
 
 - `paper_examples.py`  
-  - Reproduces the application examples from Section 4.2 of the manuscript (“Arithmetic of Mixing”):
+  - Reproduces the two first application examples from Section 4.2 of the manuscript (“Arithmetic of Mixing”):
     - 4.2.1 Battery electrolyte formulation
     - 4.2.2 Microemulsion with surfactant mixture
-    - 4.2.3 Preparation of a reaction mixture from stoichiometric rules
 
 You can run any of these from the repository root with:
 
@@ -160,5 +159,6 @@ If you use ChemCalc in your research, please cite:
 
 ```text
 Théophile Gaudin, Arithmetic of Mixing, in preparation.
-GitHub: https://github.com/TheophileGaudin/chemcalc-lib
+GitHub: https://github.com/TheophileGaudin/chemcalc-lib, doi: 10.5281/zenodo.17525109 
+
 ```

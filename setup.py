@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="chemcalc_lib",
-    version="0.1.2", 
+    version="0.1.3", 
     author="Théophile Gaudin",
     author_email="gaudin.theophile@gmail.com",
     description="A library for chemical mixture calculations and composition conversions",
