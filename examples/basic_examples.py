@@ -6,7 +6,7 @@ Example script demonstrating how to use the library
 ''' Example 1: mole fractions, and conversion, of a water/ethanol solution with salt '''
 
 # Import the library
-import chemcalc_lib as cc
+import ChemCalc_lib as cc
 
 # Define the mixture components
 names             = ["Water", "Ethanol", "NaCl"        ]
@@ -33,23 +33,44 @@ component_data = cc.create_mixture(
 result = cc.get_mole_fractions(component_data, include_entities=True)
 print("Example 1: 1 mol/L NaCl in a water/ethanol mixture 7:3 v/v")
 print("__________________________________________________________")
-print("Mole fractions       :", result["mole_fractions"])
-print("Entity mole fractions:", result["entity_mole_fractions"])
+print(
+    "Mole fractions       :",
+    {k: round(v, 3) for k, v in result["mole_fractions"].items()}
+)
+print(
+    "Entity mole fractions:",
+    {k: round(v, 3) for k, v in result["entity_mole_fractions"].items()}
+)
 
 # Get natural amounts
 conversion = cc.convert(component_data, target_types, total_amount, total_amount_type)
 print("Amounts to prepare a 1L solution:")
 for comp_name, data in conversion["converted_amounts"].items():
     if data["amount_type"] == "V":
-            print(comp_name, data["amount"], "L")
+        print(comp_name, round(data["amount"], 2), "L")
     elif data["amount_type"] == "m":
-            print(comp_name, data["amount"], "g")
+        print(comp_name, round(data["amount"], 2), "g")
 
 # Populate a unit cell            
 cell = {'a' : 15, 'b' : 15, 'c' : 15, 'alpha' : 90, 'beta' : 90, 'gamma' : 90}
-result = cc.populate_unit_cell(result["mole_fractions"], {"Water" : 18.0, "Ethanol" : 58.5, "NaCl" : 27.0}, {"Water" : [("Water", 1)], "Ethanol" : [("Ethanol", 1)], "NaCl": [("Na+", 1), ("Cl-", 1)]}, cell)
+result_cell = cc.populate_unit_cell(
+    result["mole_fractions"],
+    {"Water" : 18.0, "Ethanol" : 58.5, "NaCl" : 27.0},
+    {"Water" : [("Water", 1)], "Ethanol" : [("Ethanol", 1)], "NaCl": [("Na+", 1), ("Cl-", 1)]},
+    cell
+)
 
-print("In a cubic unit cell (edge length 15 Å):\n", result)
+# Format cell volume and total moles to 3 significant figures (scientific notation)
+cell_volume = result_cell.get("cell_volume_L")
+total_moles_cell = result_cell.get("total_moles")
+
+result_cell_print = dict(result_cell)
+if cell_volume is not None:
+    result_cell_print["cell_volume_L"] = float(f"{cell_volume:.3e}")
+if total_moles_cell is not None:
+    result_cell_print["total_moles"] = float(f"{total_moles_cell:.3e}")
+
+print("In a cubic unit cell (edge length 15 Å):\n", result_cell_print)
 print("__________________________________________________________")
 
 ''' Example 2: molality of a solute '''
@@ -82,18 +103,44 @@ component_data = cc.create_mixture(
 result = cc.get_mole_fractions(component_data, include_entities=True)
 print("Example 2: molalities of 0.5mol/kg of urea and 0.8mol/kg of hydroxybenzoic acid in a solvent composed of 1 mol/L NaCl in a water/ethanol mixture 7:3 v/v")
 print("__________________________________________________________")
-for i in range(len(result)):
-    print("Mole fractions       :", result[i]["mole_fractions"])
-    print("Entity mole fractions:", result[i]["entity_mole_fractions"])
+
+# result is a list if there are multiple 'b' solutes
+if isinstance(result, list):
+    for r in result:
+        print(
+            "Mole fractions       :",
+            {k: round(v, 3) for k, v in r["mole_fractions"].items()}
+        )
+        print(
+            "Entity mole fractions:",
+            {k: round(v, 3) for k, v in r["entity_mole_fractions"].items()}
+        )
+else:
+    print(
+        "Mole fractions       :",
+        {k: round(v, 3) for k, v in result["mole_fractions"].items()}
+    )
+    print(
+        "Entity mole fractions:",
+        {k: round(v, 3) for k, v in result["entity_mole_fractions"].items()}
+    )
     
 # Get natural amounts
 conversion = cc.convert(component_data, target_types, total_amount, total_amount_type)
 
-for i in range(len(conversion)):
-    print("Amounts to prepare a 1L solution:")
-    for comp_name, data in conversion[i]["converted_amounts"].items():
+print("Amounts to prepare a 1L solution:")
+if isinstance(conversion, list):
+    for conv in conversion:
+        for comp_name, data in conv["converted_amounts"].items():
+            if data["amount_type"] == "V":
+                print(comp_name, round(data["amount"], 2), "L")
+            elif data["amount_type"] == "m":
+                print(comp_name, round(data["amount"], 2), "g")
+else:
+    for comp_name, data in conversion["converted_amounts"].items():
         if data["amount_type"] == "V":
-                print(comp_name, data["amount"], "L")
+            print(comp_name, round(data["amount"], 2), "L")
         elif data["amount_type"] == "m":
-                print(comp_name, data["amount"], "g")
+            print(comp_name, round(data["amount"], 2), "g")
+
 print("__________________________________________________________")

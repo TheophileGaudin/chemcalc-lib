@@ -1,15 +1,18 @@
 # ChemCalc
 
-A Python library for to convert between different chemical amount types.
+ChemCalc is a Python library to convert between different chemical amount types
+and to compute mole fractions for complex mixtures, including mixtures of
+mixtures.
 
 ## Features
 
-- Convert between different amount types (mass, volume, moles, concentrations, fractions, etc.)
-- Calculate mole fractions from various mixture specifications  
-- Handle complex mixture compositions including entities and stoichiometry
-- Support for mixtures of mixtures at any level of nesting
+- Convert between amount types (mass, volume, moles, concentrations, fractions, etc.)
+- Calculate mole fractions from various mixture specifications
+- Handle complex mixture compositions including entities (ions, fragments) and stoichiometry
+- Support for mixtures of mixtures at any level of nesting (recursive mixture trees)
 - Unit cell population calculations for molecular simulation
 - Support for molality calculations with multiple solutes
+- Utility algebra functions for building custom workflows
 
 ## Installation
 
@@ -19,150 +22,126 @@ pip install chemcalc_lib
 
 ## Quick Start
 
-### Basic Example: Water/Ethanol/Salt Solution
+### Basic example: water/ethanol/NaCl solution
 
 ```python
-import chemcalc_lib as cc
+import ChemCalc_lib as cc
 
 # Define the mixture components
 names             = ["Water", "Ethanol", "NaCl"        ]
 amounts           = [70.0   , 30.0     , 1.0           ]
 amount_types      = ["φ"    , "φ"      , "c"           ]  # volume fractions and molarity
-units             = ["%"    , "%"      ,"mol/L"        ]
+units             = ["%"    , "%"      , "mol/L"       ]
 molar_weights     = [18.02  , 46.07    , 58.44         ]  # g/mol
 molar_volumes     = [18.0   , 58.5     , 27.0          ]  # mL/mol
-entities          = [[]     , []       , ["Na+", "Cl-"]]  # NaCl dissociates            
-stoichiometries   = [[]     , []       , [1.0  , 1.0  ]]  # 1:1 ratio
+entities          = [[]     , []       , ["Na+", "Cl-"]]
+stoichiometries   = [[]     , []       , [1.0  , 1.0  ]]
 
-# Create mixture data structure
+# Prepare the mixture
 component_data = cc.create_mixture(
-    names, amounts, amount_types, units, Mw=molar_weights, 
-    Vm=molar_volumes, entities=entities, stoichiometries=stoichiometries
+    names, amounts, amount_types, units,
+    Mw=molar_weights, Vm=molar_volumes,
+    entities=entities, stoichiometries=stoichiometries,
 )
 
-# Get mole fractions
+# Mole fractions (rounded for readability)
 result = cc.get_mole_fractions(component_data, include_entities=True)
-print("Mole fractions       :", result["mole_fractions"])
-print("Entity mole fractions:", result["entity_mole_fractions"])
+print("Mole fractions       :",
+      {k: round(v, 3) for k, v in result["mole_fractions"].items()})
+print("Entity mole fractions:",
+      {k: round(v, 3) for k, v in result["entity_mole_fractions"].items()})
 
-# Convert to practical amounts for preparing 1L solution
-target_types = ["V", "V", "m"]  # volumes for solvents, mass for salt
-conversion = cc.convert(component_data, target_types, 1.0, "V")  # 1L total
+# Convert to practical amounts for preparing 1 L of solution
+target_types      = ["V", "V", "m"]   # solvents in volume, salt in mass
+total_amount      = 1.0               # 1 L total
+total_amount_type = "V"
 
-print("To prepare 1L solution:")
+conversion = cc.convert(component_data, target_types, total_amount, total_amount_type)
+
+print("To prepare 1 L solution:")
 for comp_name, data in conversion["converted_amounts"].items():
     if data["amount_type"] == "V":
-        print(f"{comp_name}: {data['amount']:.3f} L")
+        print(comp_name, round(data["amount"], 2), "L")
     elif data["amount_type"] == "m":
-        print(f"{comp_name}: {data['amount']:.3f} g")
+        print(comp_name, round(data["amount"], 2), "g")
 ```
 
-### Advanced Example: Molality Calculations
+### Advanced examples
 
-```python
-# Multiple solutes with molalities
-names             = ["Water", "Ethanol", "NaCl", "Urea", "Hydroxybenzoic acid"]
-amounts           = [70.0   , 30.0     , 1.0   , 0.5   , 0.8                  ]
-amount_types      = ["φ"    , "φ"      , "c"   , "b"   , "b"                  ]  # b = molality
-units             = ["%"    , "%"      ,"mol/L", "mol/kg", "mol/kg"           ]
+The `examples/` folder contains several fully worked scripts:
 
-component_data = cc.create_mixture(names, amounts, amount_types, units, ...)
-result = cc.get_mole_fractions(component_data)
+- `basic_examples.py`  
+  - Example 1: 1 mol/L NaCl in water/ethanol 7:3 v/v  
+  - Example 2: multiple solutes with molalities in a mixed solvent  
+  - Includes a unit-cell population example.
 
-# Returns separate results for each molal solute
-for i, res in enumerate(result):
-    print(f"Solution {i+1} mole fractions:", res["mole_fractions"])
+- `recursive_example.py`  
+  - Toy example of recursive mixtures built from basic components (water, ethanol, glycerol, several salts).  
+  - Demonstrates how to define a mixture tree manually and obtain mole fractions and practical preparation amounts for terminal mixtures.
+
+- `paper_examples.py`  
+  - Reproduces the application examples from Section 4.2 of the manuscript (“Arithmetic of Mixing”):
+    - 4.2.1 Battery electrolyte formulation
+    - 4.2.2 Microemulsion with surfactant mixture
+    - 4.2.3 Preparation of a reaction mixture from stoichiometric rules
+
+You can run any of these from the repository root with:
+
+```bash
+python examples/basic_examples.py
+python examples/recursive_example.py
+python examples/paper_examples.py
 ```
 
-### Recursive Mixtures
+(adjust paths as needed depending on where you place the files.)
 
-For complex solutions prepared in multiple steps:
+## Supported amount types
 
-```python
-# Define base components
-components = {
-    "Water": {"name": "Water", "mw": 18.015, "vm": 18.0},
-    "Ethanol": {"name": "Ethanol", "mw": 46.07, "vm": 58.0},
-    "NaCl": {
-        "name": "NaCl", "mw": 58.44, "vm": 27.0,
-        "properties": {
-            "entities": [
-                {"name": "Na⁺", "stoichiometry": 1.0},
-                {"name": "Cl⁻", "stoichiometry": 1.0}
-            ]
-        }
-    }
-}
+| Symbol | Type               | Standard unit |
+|--------|--------------------|---------------|
+| `m`    | Mass               | g             |
+| `V`    | Volume             | L             |
+| `n`    | Moles              | mol           |
+| `w`    | Weight fraction    | – (0–1)       |
+| `φ`    | Volume fraction    | – (0–1)       |
+| `x`    | Mole fraction      | – (0–1)       |
+| `c`    | Molarity           | mol/L         |
+| `b`    | Molality           | mol/kg        |
+| `ρ`    | Mass concentration | g/L           |
+| `v`    | Specific volume    | L/g           |
 
-# Define intermediate mixtures
-water_ethanol = {
-    "name": "Water-Ethanol", 
-    "parents": [
-        {"name": "Water", "amount": 70, "amount_type": "φ", "unit": "%"},
-        {"name": "Ethanol", "amount": 30, "amount_type": "φ", "unit": "%"}
-    ]
-}
+## Unit handling
 
-# Define final mixture
-saline_solution = {
-    "name": "Saline-Solution",
-    "parents": [
-        {"name": "Water-Ethanol", "amount": 95, "amount_type": "V", "unit": "mL"},
-        {"name": "NaCl", "amount": 0.9, "amount_type": "m", "unit": "g"}
-    ]
-}
+The library automatically handles common unit conversions:
 
-# Combine all nodes
-all_nodes = {**components, "Water-Ethanol": water_ethanol, "Saline-Solution": saline_solution}
-
-# Calculate terminal mixtures
-results = cc.get_mole_fractions_recursive(all_nodes, include_entities=True)
-```
-
-## Supported Amount Types
-
-| Symbol | Type | Standard Unit |
-|--------|------|---------------|
-| `m` | Mass | g |
-| `V` | Volume | L |
-| `n` | Moles | mol |
-| `w` | Weight fraction | - (0-1) |
-| `φ` | Volume fraction | - (0-1) |  
-| `x` | Mole fraction | - (0-1) |
-| `c` | Molarity | mol/L |
-| `b` | Molality | mol/kg |
-| `ρ` | Mass concentration | g/L |
-| `v` | Specific volume | L/g |
-
-## Unit Conversions
-
-The library automatically handles unit conversions:
-- Mass: kg, g, mg, μg
+- Mass: kg, g, mg, μg  
 - Volume: m³, L, mL, μL, cc, cm³  
-- Amount: mol, mmol, μmol
-- Concentrations: M, mM, μM, mol/L, etc.
-- Fractions: decimal (0-1) or percentage (%)
+- Amount: mol, mmol, μmol  
+- Concentrations: M, mM, μM, mol/L, etc.  
+- Fractions: decimal (0–1) or percentage (%)
 
-## API Reference
+## API overview
 
-### Main Functions
+### Main functions
 
-- `create_mixture()`: Create mixture data structure
-- `get_mole_fractions()`: Calculate mole fractions from mixture
-- `convert()`: Convert to target amount types
-- `get_mole_fractions_recursive()`: Handle mixtures of mixtures at any level of nesting
-- `populate_unit_cell()`: Calculate entities in unit cell
+- `create_mixture()` – build the internal data structure for a mixture.  
+- `get_mole_fractions()` – calculate mole fractions (and optionally entity mole fractions).  
+- `convert()` – convert a mixture to a set of target amount types for a specified total amount.  
+- `get_mole_fractions_recursive()` – handle mixtures of mixtures defined as a mixture tree.  
+- `populate_unit_cell()` – calculate the population of entities in a crystallographic unit cell.
 
 ### Utilities
 
-- `create_amount_matrix()`: Convert mixture composition to matrix format
-- `entities_mole_fraction_algebra()`: Calculate entity mole fractions  
-- `amount_conversion_algebra()`: Core conversion calculations
+- `create_amount_matrix()` – convert mixture specifications into matrix form.  
+- `entities_mole_fraction_algebra()` – perform the algebra for entity mole fractions.  
+- `amount_conversion_algebra()` – core conversion engine between amount types.
+
+For full details, see the docstrings in the source code and the example scripts.
 
 ## Requirements
 
-- Python >= 3.8
-- NumPy >= 1.19.0
+- Python ≥ 3.8  
+- NumPy ≥ 1.19.0  
 
 ## License
 
@@ -170,13 +149,16 @@ MIT License
 
 ## Contributing
 
-Contributions welcome! Please read our contributing guidelines and submit pull requests to our GitHub repository.
+Contributions are welcome. Please open issues or pull requests on the GitHub
+repository:
+
+https://github.com/TheophileGaudin/chemcalc-lib
 
 ## Citation
 
 If you use ChemCalc in your research, please cite:
 
-```
+```text
 Théophile Gaudin, Arithmetic of Mixing, in preparation.
-GitHub: https://github.com/yourusername/chemcalc-lib
+GitHub: https://github.com/TheophileGaudin/chemcalc-lib
 ```

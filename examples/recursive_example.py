@@ -7,7 +7,7 @@ Example script demonstrating how to use the library
 
 # Import the library
 
-import chemcalc_lib as cc
+import ChemCalc_lib as cc
 
 # Define basic components (leaf nodes)
 # Because of the recursive structure, the user needs to define the dictionaries directly.
@@ -135,9 +135,15 @@ results = cc.get_mole_fractions_recursive(all_nodes, include_entities=True)
 
 # Print results for each terminal mixture
 for mixture in results:
-    print("Terminal mixture:"     , mixture["name"])
-    print("Mole fractions       :", mixture["mole_fractions"])
-    print("Entity mole fractions:", mixture["entity_mole_fractions"])
+    #rounding to make it easier to read
+    mf_rounded = {k: round(v, 4) for k, v in mixture["mole_fractions"].items()}
+    emf_rounded = {k: round(v, 4) for k, v in mixture["entity_mole_fractions"].items()}
+    
+    #actual print
+    print("Terminal mixture:"      , mixture["name"])
+    print("Mole fractions       :", mf_rounded)
+    print("Entity mole fractions:", emf_rounded)
+    print("")
 
 # Convert to target amounts for all terminal mixtures
 # Define target types for components in each terminal mixture
@@ -165,6 +171,7 @@ for mixture in results:
     print("Amounts to prepare a 1L solution for", mixture["name"], ":")
     for comp_name, data in conversion["converted_amounts"].items():
         if data["amount_type"] == "V":
-            print(comp_name, data["amount"], "L")
+            print(comp_name, round(data["amount"],2), "L")
         elif data["amount_type"] == "m":
-            print(comp_name, data["amount"], "g")
+            print(comp_name, round(data["amount"],2), "g")
+    print("")
